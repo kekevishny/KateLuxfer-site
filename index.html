@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Мои ссылки — Соцсети</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="container">
+    <h1>Мои соцсети</h1>
+    <p class="lead">Страница попытается автоматически получить и распарсить ссылки с <code>http://localhost:8000/</code>. Если сервер недоступен — вставьте HTML вручную или добавьте ссылку.</p>
+
+    <div id="notice" class="notice">Пробую подключиться к <code>http://localhost:8000/</code>...</div>
+
+    <ul id="links" class="links-list" aria-live="polite"></ul>
+
+    <section class="panel">
+      <h2>Вставьте HTML (если авто-получение не сработало)</h2>
+      <textarea id="htmlInput" placeholder="Вставьте здесь HTML страницы и нажмите «Распарсить»" rows="6"></textarea>
+      <div class="row">
+        <button id="parseBtn" class="btn">Распарсить</button>
+        <button id="clearBtn" class="btn ghost">Очистить</button>
+      </div>
+    </section>
+
+    <section class="panel small">
+      <h2>Добавить ссылку вручную</h2>
+      <input id="titleInput" placeholder="Название (например, Instagram)">
+      <input id="urlInput" placeholder="URL (https://...)">
+      <div class="row">
+        <button id="addBtn" class="btn">Добавить</button>
+      </div>
+    </section>
+
+    <footer class="muted">Если хотите, я могу автоматически сгенерировать страницу с реальными ссылками — запустите локальный сервер на порту 8000 и перезагрузите эту страницу, или пришлите HTML.</footer>
+  </main>
+
+  <script>
+    // Начальные (переданные пользователем) ссылки — будут показаны по умолчанию
+    const defaultLinks = [
+      { title: 'Instagram', url: 'https://www.instagram.com/kate_luxfer?igsh=OHF2anM3ZjJ4ZHll' },
+      { title: 'Telegram', url: 'https://t.me/Kate_Luxfer' },
+      { title: 'VK', url: 'https://vk.com/kate_luxfer' },
+      { title: 'Max', url: 'https://max.ru/join/9eaeWniTAJZ8hCJs6Y1uGQiuLXkOG4mJvragQ90gT6M' },
+      { title: 'WhatsApp', url: 'https://wa.me/message/NUQASZZ3CN73G1' },
+      { title: 'VK channel', url: 'https://vk.com/kate_luxfer_channel' },
+      { title: 'Telegram chanel: life', url: 'https://t.me/+hN3q7-amMkg5MDAy' },
+      { title: 'Telegram chanel: for clients', url: 'https://t.me/+W5MnmDEO0uEzOTI6' },
+      { title: 'Telegram chanel: more photos', url: 'https://t.me/+4vWBEULdRKkwMzky' }
+    ];
+
+    // Попытка получить HTML с локального сервера и распарсить ссылки
+    async function tryFetchAndParse() {
+      const notice = document.getElementById('notice');
+      try {
+        const resp = await fetch('http://localhost:8000/');
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const text = await resp.text();
+        notice.textContent = 'Успешно загружено с http://localhost:8000/ — парсю ссылки...';
+        const links = extractLinksFromHtml(text);
+        renderLinks(links);
+      } catch (err) {
+        notice.innerHTML = 'Не удалось подключиться к <code>http://localhost:8000/</code>. Вы можете вставить HTML вручную ниже или запустить локальный сервер.';
+        console.info('fetch failed:', err);
+      }
+    }
+
+    function extractLinksFromHtml(html) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const anchors = Array.from(doc.querySelectorAll('a'));
+      const results = [];
+      const seen = new Set();
+      for (const a of anchors) {
+        const href = (a.getAttribute('href') || '').trim();
+        if (!href) continue;
+        // Нормализуем относительно документа если нужно
+        let url = href;
+        try {
+          url = new URL(href, window.location.href).href;
+        } catch (_) { /* ignore */ }
+        if (seen.has(url)) continue;
+        seen.add(url);
+        const title = (a.textContent || a.getAttribute('title') || detectSiteName(url) || url).trim();
+        results.push({title, url});
+      }
+      return results;
+    }
+
+    function detectSiteName(url) {
+      const host = url.replace(/^https?:\/\//, '').split('/')[0];
+      const map = [
+        ['instagram', 'Instagram'], ['facebook', 'Facebook'], ['vk.com', 'ВКонтакте'], ['t.me', 'Telegram'], ['telegram', 'Telegram'], ['twitter', 'Twitter'], ['linkedin', 'LinkedIn'], ['github', 'GitHub'], ['youtube', 'YouTube']
+      ];
+      for (const [k, name] of map) if (host.includes(k)) return name;
+      return null;
+    }
+
+    function renderLinks(list) {
+      const container = document.getElementById('links');
+      container.innerHTML = '';
+      if (!list || list.length === 0) {
+        container.innerHTML = '<li class="muted">Ссылок не найдено.</li>';
+        return;
+      }
+      for (const item of list) {
+        const li = document.createElement('li');
+        const a = document.createElement('a');
+        a.href = item.url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.className = 'btn link-btn';
+        a.textContent = item.title;
+        li.appendChild(a);
+        container.appendChild(li);
+      }
+    }
+
+    // UI handlers
+    document.getElementById('parseBtn').addEventListener('click', () => {
+      const html = document.getElementById('htmlInput').value;
+      const links = extractLinksFromHtml(html);
+      renderLinks(links);
+    });
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      document.getElementById('htmlInput').value = '';
+    });
+    document.getElementById('addBtn').addEventListener('click', () => {
+      const title = document.getElementById('titleInput').value.trim();
+      const url = document.getElementById('urlInput').value.trim();
+      if (!url) return alert('Введите URL');
+      const list = extractLinksFromHtml('') || [];
+      // Получаем текущые ссылки из DOM
+      const container = document.getElementById('links');
+      const existing = Array.from(container.querySelectorAll('a')).map(a=>({title:a.textContent,url:a.href}));
+      existing.push({title: title || url, url});
+      renderLinks(existing);
+      document.getElementById('titleInput').value = '';
+      document.getElementById('urlInput').value = '';
+    });
+
+    // Показываем пользовательские ссылки по умолчанию, затем пробуем авто-получение
+    renderLinks(defaultLinks);
+    tryFetchAndParse();
+  </script>
+</body>
+</html>
